@@ -86,7 +86,7 @@ func configWithNonZeroNonFunctionFields(t *testing.T) *Config {
 		}
 
 		switch fn := typ.Field(i).Name; fn {
-		case "GetConfigForClient", "RequireAddressValidation", "GetLogWriter", "AllowConnectionWindowIncrease", "Tracer":
+		case "GetConfigForClient", "RequireAddressValidation", "GetLogWriter", "AllowConnectionWindowIncrease", "Tracer", "Congestion":
 			// Can't compare functions.
 		case "Versions":
 			f.Set(reflect.ValueOf([]Version{1, 2, 3}))
@@ -128,11 +128,6 @@ func configWithNonZeroNonFunctionFields(t *testing.T) *Config {
 			f.Set(reflect.ValueOf(true))
 		case "EnableStreamResetPartialDelivery":
 			f.Set(reflect.ValueOf(true))
-		case "Congestion":
-			ff := func() SendAlgorithmWithDebugInfos {
-				return nil
-			}
-			f.Set(reflect.ValueOf(ff))
 		default:
 			t.Fatalf("all fields must be accounted for, but saw unknown field %q", fn)
 		}
@@ -176,7 +171,13 @@ func TestConfigClone(t *testing.T) {
 func TestConfigDefaultValues(t *testing.T) {
 	// if set, the values should be copied
 	c := configWithNonZeroNonFunctionFields(t)
-	require.Equal(t, c, populateConfig(c))
+	populated := populateConfig(c)
+	// Congestion is a function field: populateConfig defaults it when unset,
+	// and functions can't be compared for equality.
+	require.Nil(t, c.Congestion)
+	require.NotNil(t, populated.Congestion)
+	populated.Congestion = nil
+	require.Equal(t, c, populated)
 
 	// if not set, some fields use default values
 	c = populateConfig(&Config{})
