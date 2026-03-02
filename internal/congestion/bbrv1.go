@@ -189,6 +189,12 @@ func (b *BBRv1Sender) OnPacketAcked(number protocol.PacketNumber, ackedBytes pro
 		}
 		b.latelybandwidth[b.round%bw_win] = delivery_rate
 		b.round++
+		// Cycle pacing gain after exit_recover() so that if recovery just
+		// ended this round, the new round's gain takes precedence over the
+		// gain that exit_recover() restored.
+		if b.state == PROBE_BW && !b.inRecovery {
+			b.pacing_gain = probeBWCycleGain[b.round%8]
+		}
 		b.round_start_time = eventTime
 		b.delivered = 0
 		b.delivered_time = eventTime
@@ -221,12 +227,11 @@ func (b *BBRv1Sender) OnPacketAcked(number protocol.PacketNumber, ackedBytes pro
 func (b *BBRv1Sender) MaybeExitSlowStart() {}
 
 func (b *BBRv1Sender) OnCongestionEvent(number protocol.PacketNumber, lostBytes protocol.ByteCount, priorInFlight protocol.ByteCount) {
-	// TODO: handle this
-	// if b.state == STARTUP || b.state == PROBE_RTT {
-	// 	return
-	// }
-	// b.inRecovery = true
-	// b.pacing_gain = 1
+	if b.state == STARTUP || b.state == PROBE_RTT {
+		return
+	}
+	b.inRecovery = true
+	b.pacing_gain = 1
 }
 
 // OnRetransmissionTimeout is called when a retransmission timer expires.
